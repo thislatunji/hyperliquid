@@ -1,0 +1,8 @@
+services:
+  monitor:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./state.json:/app/state.json
+    restart: "no"

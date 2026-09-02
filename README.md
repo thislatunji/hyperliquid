@@ -54,6 +54,52 @@ the AMM name, liquidity amounts, and a block-explorer link to the transaction.
 That's it — you'll get a "🚀 HyperEVM Monitor Started" message in Telegram, then
 real-time alerts as events occur.
 
+## Run Locally with Docker
+
+Run the setup, image build, container tests, and monitor with one command:
+
+```bash
+./docker-local.sh
+```
+
+On the first run, the script creates `.env` from `.env.example`; fill in
+`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`, then run it again. It also creates
+`state.json` when needed and keeps that file in the project directory so
+restarts do not lose the scan position. Press `Ctrl+C` to stop the monitor.
+
+To verify the image and decoder tests without starting the monitor:
+
+```bash
+docker compose run --rm monitor python test_decoder.py
+```
+
+To remove the stopped container afterward:
+
+```bash
+docker compose down
+```
+
+## Deploy to Railway
+
+1. Create a Railway project and deploy this repository. Railway will detect the
+   `Dockerfile` and use its `python monitor.py` command automatically.
+2. Add these variables under the service's **Variables** tab:
+   `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `HYPEREVM_RPC_URL`,
+   `POLL_INTERVAL_SECONDS`, and `BLOCKS_PER_POLL`. The first two are required;
+   the others can use the defaults shown above.
+3. Deploy and check the service logs for `Connected to HyperEVM` and
+   `HyperEVM Monitor Started`.
+
+This is a background worker, so it does not need a public domain or exposed
+port. Railway's default filesystem is ephemeral. The monitor still works
+without persistent storage, but it will start from the latest block after a
+redeploy. For persistent scan state, add a Railway Volume mounted at `/data`
+and set `STATE_FILE=/data/state.json`.
+
+Before deploying, run `./docker-local.sh` locally and confirm that the startup
+Telegram message arrives. Never commit `.env` or paste bot credentials into
+Railway logs.
+
 ## Configuration (.env)
 
 | Variable | Default | Purpose |
