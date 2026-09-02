@@ -58,14 +58,14 @@ def _fork_label(fork: ForkType) -> str:
     return labels.get(fork, "?")
 
 
-def _token_info(w3, address: str) -> tuple[str, int]:
+async def _token_info(w3, address: str) -> tuple[str, int]:
     try:
         from contracts import ERC20_ABI
         contract = w3.eth.contract(
             address=w3.to_checksum_address(address), abi=ERC20_ABI
         )
-        symbol = contract.functions.symbol().call()
-        decimals = contract.functions.decimals().call()
+        symbol = await contract.functions.symbol().call()
+        decimals = await contract.functions.decimals().call()
         return symbol, decimals
     except Exception:
         return "???", 18
@@ -86,9 +86,9 @@ def format_amount(amount: int, decimals: int) -> str:
     return f"{value:.10f}"
 
 
-def alert_pair_created(w3, event: PairCreatedEvent) -> bool:
-    sym0, dec0 = _token_info(w3, event.token0)
-    sym1, dec1 = _token_info(w3, event.token1)
+async def alert_pair_created(w3, event: PairCreatedEvent) -> bool:
+    sym0, dec0 = await _token_info(w3, event.token0)
+    sym1, dec1 = await _token_info(w3, event.token1)
 
     text = (
         f"<b>🟢 NEW PAIR — {event.amm_name}</b> ({_fork_label(event.fork)})\n\n"
@@ -103,9 +103,9 @@ def alert_pair_created(w3, event: PairCreatedEvent) -> bool:
     return _send(text)
 
 
-def alert_pool_created(w3, event: PoolCreatedEvent) -> bool:
-    sym0, dec0 = _token_info(w3, event.token0)
-    sym1, dec1 = _token_info(w3, event.token1)
+async def alert_pool_created(w3, event: PoolCreatedEvent) -> bool:
+    sym0, dec0 = await _token_info(w3, event.token0)
+    sym1, dec1 = await _token_info(w3, event.token1)
 
     fee_pct = event.fee / 1_000_000 * 100
 
@@ -123,12 +123,18 @@ def alert_pool_created(w3, event: PoolCreatedEvent) -> bool:
     return _send(text)
 
 
-def alert_mint(w3, event: MintEvent, pair_info: dict | None = None, token0: str = "", token1: str = "") -> bool:
+async def alert_mint(w3, event: MintEvent, pair_info: dict | None = None, token0: str = "", token1: str = "") -> bool:
     token0 = token0 or (pair_info.get("token0", "") if pair_info else "")
     token1 = token1 or (pair_info.get("token1", "") if pair_info else "")
 
-    sym0, dec0 = _token_info(w3, token0) if token0 else ("???", 18)
-    sym1, dec1 = _token_info(w3, token1) if token1 else ("???", 18)
+    if token0:
+        sym0, dec0 = await _token_info(w3, token0)
+    else:
+        sym0, dec0 = "???", 18
+    if token1:
+        sym1, dec1 = await _token_info(w3, token1)
+    else:
+        sym1, dec1 = "???", 18
 
     amt0 = format_amount(event.amount0, dec0)
     amt1 = format_amount(event.amount1, dec1)
@@ -157,12 +163,18 @@ def alert_mint(w3, event: MintEvent, pair_info: dict | None = None, token0: str 
     return _send(text)
 
 
-def alert_swap(w3, event: SwapEvent, pair_info: dict | None = None) -> bool:
+async def alert_swap(w3, event: SwapEvent, pair_info: dict | None = None) -> bool:
     token0 = pair_info.get("token0", "") if pair_info else ""
     token1 = pair_info.get("token1", "") if pair_info else ""
 
-    sym0, dec0 = _token_info(w3, token0) if token0 else ("???", 18)
-    sym1, dec1 = _token_info(w3, token1) if token1 else ("???", 18)
+    if token0:
+        sym0, dec0 = await _token_info(w3, token0)
+    else:
+        sym0, dec0 = "???", 18
+    if token1:
+        sym1, dec1 = await _token_info(w3, token1)
+    else:
+        sym1, dec1 = "???", 18
 
     pool_addr = event.pair_address or (pair_info.get("pool", "") if pair_info else "")
 

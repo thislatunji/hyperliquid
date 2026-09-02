@@ -5,6 +5,7 @@ import logging
 import os
 import signal
 import ssl
+import sys
 
 from web3 import AsyncWeb3, AsyncHTTPProvider
 
@@ -122,7 +123,7 @@ async def handle_pair_created(w3, state, event: PairCreatedEvent) -> None:
     )
 
     state.mark_known(key, event.token0, event.token1, event.amm_name, pair_addr)
-    telegram.alert_pair_created(w3, event)
+    await telegram.alert_pair_created(w3, event)
     save_state(state)
 
 
@@ -136,7 +137,7 @@ async def handle_pool_created(w3, state, event: PoolCreatedEvent) -> None:
     )
 
     state.mark_known(key, event.token0, event.token1, event.amm_name, event.pool_address)
-    telegram.alert_pool_created(w3, event)
+    await telegram.alert_pool_created(w3, event)
     save_state(state)
 
 
@@ -153,7 +154,7 @@ async def handle_mint(w3, state, event: MintEvent) -> None:
         event.amm_name, event.amount0, event.amount1, event.pair_address, event.block_number,
     )
 
-    telegram.alert_mint(w3, event, pair_info, token0=token0, token1=token1)
+    await telegram.alert_mint(w3, event, pair_info, token0=token0, token1=token1)
 
 
 async def handle_swap(w3, state, event: SwapEvent) -> None:
@@ -169,10 +170,10 @@ async def handle_swap(w3, state, event: SwapEvent) -> None:
         "FIRST SWAP [%s]: on pair %s (block %d)",
         event.amm_name, key, event.block_number,
     )
-    telegram.alert_swap(w3, event, pair_info)
+    await telegram.alert_swap(w3, event, pair_info)
 
 
-async def run(w3: AsyncWeb3, state: MonitorState) -> None:
+async def run(w3: AsyncWeb3, state: MonitorState, verbose: bool = False) -> None:
     global running
 
     if state.last_block == 0:
@@ -189,14 +190,21 @@ async def run(w3: AsyncWeb3, state: MonitorState) -> None:
         if want <= latest:
             await scan_block_range(w3, state, want, latest)
 
+    poll_count = 0
     while running:
         try:
             latest = await w3.eth.block_number
+            poll_count += 1
             if latest > state.last_block:
                 to_block = min(latest, state.last_block + BLOCKS_PER_POLL)
                 await scan_block_range(w3, state, state.last_block + 1, to_block)
                 state.last_block = to_block
                 save_state(state)
+            elif verbose:
+                log.info(
+                    "poll #%d @ block %d — scanning %d AMMs, nothing new",
+                    poll_count, latest, len(AMM_REGISTRY),
+                )
 
             await asyncio.sleep(POLL_INTERVAL)
         except asyncio.CancelledError:
@@ -225,6 +233,9 @@ def _build_w3() -> AsyncWeb3:
 
 
 async def main() -> None:
+    verbose = "--verbose" in sys.argv or "-v" in sys.argv
+    simulate = "--simulate" in sys.argv
+
     state = load_state()
 
     w3 = _build_w3()
@@ -239,8 +250,30 @@ async def main() -> None:
 
     telegram.alert_startup(len(AMM_REGISTRY), state.last_block if state.last_block else latest)
 
-    await run(w3, state)
+    if simulate:
+        await simulate_pair_created(w3, state)
+        return
+
+    await run(w3, state, verbose=verbose)
     log.info("Shutdown complete")
+
+
+async def simulate_pair_created(w3: AsyncWeb3, state: MonitorState) -> None:
+    """Fire a fake PairCreated event through the real detection+alert pipeline."""
+    from decoder import PairCreatedEvent
+    fake = PairCreatedEvent(
+        amm_name="HyperSwap V2",
+        fork=ForkType.UNISWAP_V2,
+        token0="0x0000000000000000000000000000000000000AAA",
+        token1="0x0000000000000000000000000000000000000BBB",
+        pair_address="0x0000000000000000000000000000000000000CCC",
+        pair_index=1,
+        block_number=await w3.eth.block_number,
+        tx_hash="0x" + "11" * 32,
+        log_index=0,
+    )
+    log.info("Simulating a fake pair-created alert (no state change)...")
+    await telegram.alert_pair_created(w3, fake)
 
 
 if __name__ == "__main__":
