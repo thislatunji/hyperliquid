@@ -9,7 +9,7 @@ except Exception:
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 HYPEREVM_RPC_URL = os.environ.get("HYPEREVM_RPC_URL", "https://rpc.hyperliquid.xyz/evm")
-POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SECONDS", "3"))
+POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SECONDS", "60"))
 BLOCKS_PER_POLL = int(os.environ.get("BLOCKS_PER_POLL", "50"))
 STATE_FILE = os.environ.get("STATE_FILE", "state.json")
 

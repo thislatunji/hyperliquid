@@ -91,7 +91,14 @@ async def scan_block_range(w3, state: MonitorState, from_block: int, to_block: i
     if not logs:
         return
 
-    for log_entry in sorted(logs, key=lambda l: (int(l.get("blockNumber", 0), 16), int(l.get("logIndex", 0), 16))):
+    def _to_int(v):
+        if isinstance(v, int):
+            return v
+        if isinstance(v, str) and v.startswith("0x"):
+            return int(v, 16)
+        return int(v) if v else 0
+
+    for log_entry in sorted(logs, key=lambda l: (_to_int(l.get("blockNumber", 0)), _to_int(l.get("logIndex", 0)))):
         event = decode_log(log_entry)
         if event is None:
             continue
