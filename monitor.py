@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import signal
+import ssl
 
 from web3 import AsyncWeb3, AsyncHTTPProvider
 
@@ -75,7 +77,10 @@ async def scan_block_range(w3, state: MonitorState, from_block: int, to_block: i
                 "fromBlock": from_block,
                 "toBlock": to_block,
                 "address": all_addresses,
-                "topics": topics,
+                # All our topics are event-signature hashes, so they all filter on
+                # position 0. Nest them as an OR-list; passing them as separate
+                # position elements exceeds HyperEVM's max-topics-per-request cap.
+                "topics": [topics],
             }
         )
     except Exception as e:
@@ -202,16 +207,33 @@ async def run(w3: AsyncWeb3, state: MonitorState) -> None:
             await asyncio.sleep(POLL_INTERVAL * 5)
 
 
+def _build_w3() -> AsyncWeb3:
+    """Build the AsyncWeb3 client with a CA-bundle that works on macOS.
+
+    The python.org macOS Python build fails to find the system CA store, which
+    makes aiohttp (used by AsyncHTTPProvider) raise CERTIFICATE_VERIFY_FAILED,
+    even though `requests` works. We supply certifi's CA bundle explicitly.
+    """
+    request_kwargs: dict = {"timeout": 30}
+    try:
+        import certifi
+        ctx = ssl.create_default_context(cafile=certifi.where())
+        request_kwargs["ssl"] = ctx
+    except Exception:
+        log.warning("certifi not available; relying on system CA store")
+    return AsyncWeb3(AsyncHTTPProvider(HYPEREVM_RPC_URL, request_kwargs=request_kwargs))
+
+
 async def main() -> None:
     state = load_state()
 
-    w3 = AsyncWeb3(AsyncHTTPProvider(HYPEREVM_RPC_URL, request_kwargs={"timeout": 30}))
-
-    if not await w3.is_connected():
-        log.error("Could not connect to RPC at %s", HYPEREVM_RPC_URL)
+    w3 = _build_w3()
+    try:
+        latest = await w3.eth.block_number
+    except Exception as e:
+        log.error("Could not connect to RPC at %s: %s", HYPEREVM_RPC_URL, e)
         raise SystemExit(1)
 
-    latest = await w3.eth.block_number
     log.info("Connected to HyperEVM, latest block %d", latest)
     log.info("Monitoring %d AMMs: %s", len(AMM_REGISTRY), ", ".join(a.name for a in AMM_REGISTRY))
 

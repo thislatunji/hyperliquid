@@ -178,12 +178,13 @@ def _decode_pair_created_v2(topics, data, amm_name, fork, block, tx, log_idx) ->
     token1 = _addr_from_topic(topics[2])
     pair_address = _addr_from_topic(topics[3]) if len(topics) > 3 else ""
     if not pair_address:
+        # If the pair address wasn't indexed, fall back to decoding from data
         decoded = decode(["address", "uint256"], data)
         pair_address = Web3.to_checksum_address(decoded[0])
     pair_index = 0
-    if len(data) >= 64:
-        decoded = decode(["address", "uint256"], data)
-        pair_index = decoded[1]
+    if len(data) >= 32:
+        # Uniswap V2 PairCreated data = uint allPairsLength
+        pair_index = decode(["uint256"], data)[0]
     return PairCreatedEvent(
         amm_name=amm_name, fork=fork, token0=token0, token1=token1,
         pair_address=pair_address, pair_index=pair_index,

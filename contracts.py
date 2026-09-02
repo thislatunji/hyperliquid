@@ -51,14 +51,21 @@ AMM_REGISTRY: list[AMM] = [
 
 # ── Event topic0 hashes ──────────────────────────────────────────
 
-PAIR_CREATED_V2 = Web3.keccak(text="PairCreated(address,address,address,uint256)").hex()
-POOL_CREATED_V3 = Web3.keccak(text="PoolCreated(address,address,uint24,int24,address)").hex()
-POOL_ALGEBRA   = Web3.keccak(text="Pool(address,address,address)").hex()
-MINT_V2        = Web3.keccak(text="Mint(address,uint256,uint256)").hex()
-MINT_V3        = Web3.keccak(text="Mint(address,address,int24,int24,uint128,uint256,uint256)").hex()
-INCREASE_LIQ   = Web3.keccak(text="IncreaseLiquidity(uint256,uint128,uint256,uint256)").hex()
-SWAP_V2        = Web3.keccak(text="Swap(address,uint256,uint256,uint256,uint256,address)").hex()
-SWAP_V3        = Web3.keccak(text="Swap(address,address,int256,int256,uint160,uint128,int24)").hex()
+
+def _topic(text: str) -> str:
+    """Compute keccak256 of an event signature, always 0x-prefixed."""
+    h = Web3.keccak(text=text).hex()
+    return h if h.startswith("0x") else "0x" + h
+
+
+PAIR_CREATED_V2 = _topic("PairCreated(address,address,address,uint256)")
+POOL_CREATED_V3 = _topic("PoolCreated(address,address,uint24,int24,address)")
+POOL_ALGEBRA   = _topic("Pool(address,address,address)")
+MINT_V2        = _topic("Mint(address,uint256,uint256)")
+MINT_V3        = _topic("Mint(address,address,int24,int24,uint128,uint256,uint256)")
+INCREASE_LIQ   = _topic("IncreaseLiquidity(uint256,uint128,uint256,uint256)")
+SWAP_V2        = _topic("Swap(address,uint256,uint256,uint256,uint256,address)")
+SWAP_V3        = _topic("Swap(address,address,int256,int256,uint160,uint128,int24)")
 
 # Minimal ABIs for on-chain reads
 ERC20_ABI = [

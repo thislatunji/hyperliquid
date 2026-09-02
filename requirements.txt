@@ -2,3 +2,4 @@ web3>=7.0.0
 eth-abi>=5.0.0
 requests>=2.31.0
 python-dotenv>=1.0.0
+certifi>=2024.0.0
